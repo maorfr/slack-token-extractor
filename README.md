@@ -70,5 +70,11 @@ You can also extract tokens using a Python Selenium script. This is useful for a
 
 ---
 
+## Appreciation
+
+Special thanks to [@korotovsky](https://github.com/korotovsky) for the excellent [slack-mcp-server](https://github.com/korotovsky/slack-mcp-server) setup guide. The clear and detailed instructions in their README made it much easier to understand and work with Slack tokens. Your work is greatly appreciated!
+
+---
+
 ## License
 MIT 
