@@ -1,0 +1,23 @@
+{
+  "manifest_version": 2,
+  "name": "Slack Token Extractor",
+  "version": "1.0",
+  "description": "Extracts Slack tokens from localStorage and cookies.",
+  "permissions": [
+    "cookies",
+    "storage",
+    "https://*.slack.com/"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.slack.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "browser_action": {
+    "default_popup": "popup.html"
+  }
+} 
