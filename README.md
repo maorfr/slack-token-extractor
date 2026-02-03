@@ -1,16 +1,30 @@
 # Slack Token Extractor
 
-Extract your Slack XOXC and XOXD tokens easily using browser extensions or Selenium automation.
+Extract your Slack XOXC and XOXD tokens easily using browser extensions or Python automation.
 
-## Project Structure
+## Why?
 
-- [`chrome/`](chrome/) — Chrome/Chromium extension
-- [`firefox/`](firefox/) — Firefox add-on
-- Selenium script (see below)
+Slack's official API requires workspace admin approval for most useful scopes. These tokens let you access Slack programmatically using your own user permissions — no admin approval needed.
+
+**Common use cases:**
+- Use with [slack-mcp-server](https://github.com/korotovsky/slack-mcp-server) for AI assistant integration
+- Personal automation scripts
+- Backup your own messages
+- Research and analysis
+
+## Extraction Methods
+
+| Method | Best For | Requires |
+|--------|----------|----------|
+| [Playwright](#4-playwright-script-recommended) | Automation, CI/CD | Python 3.8+ |
+| [Selenium](#3-selenium-script) | Legacy setups | Python 3.8+, chromedriver |
+| [Chrome Extension](#1-chrome-extension) | Quick one-time extraction | Chrome browser |
+| [Firefox Add-on](#2-firefox-add-on) | Quick one-time extraction | Firefox browser |
 
 ---
 
 ## 1. Chrome Extension
+
 See [`chrome/README.md`](chrome/README.md) for full instructions.
 
 **Quick Start:**
@@ -22,6 +36,7 @@ See [`chrome/README.md`](chrome/README.md) for full instructions.
 ---
 
 ## 2. Firefox Add-on
+
 See [`firefox/README.md`](firefox/README.md) for full instructions.
 
 **Quick Start:**
@@ -33,48 +48,143 @@ See [`firefox/README.md`](firefox/README.md) for full instructions.
 
 ## 3. Selenium Script
 
-You can also extract tokens using a Python Selenium script. This is useful for automation or if you prefer not to use a browser extension.
+Extract tokens using Python + Selenium. Useful if you already have Selenium set up.
 
 ### Prerequisites
 - Python 3.8+
 - [Selenium](https://pypi.org/project/selenium/)
-- [geckodriver](https://github.com/mozilla/geckodriver/releases) (for Firefox) or [chromedriver](https://chromedriver.chromium.org/) (for Chrome)
+- [chromedriver](https://chromedriver.chromium.org/) or [geckodriver](https://github.com/mozilla/geckodriver/releases)
 
 ### Usage
-1. Clone this repository:
-   ```sh
-   git clone https://github.com/maorfr/slack-token-extractor.git
-   cd slack-token-extractor
-   ```
-2. Install dependencies:
-   ```sh
-   pip install selenium
-   ```
-3. Run the script (example for Firefox):
-   ```sh
-   python run.py
-   ```
-   - The script will open a browser window. Log in to Slack if prompted.
-   - Follow the instructions in the terminal to extract your tokens.
-   - Tokens will be displayed and you can optionally save them to a `.env` file.
+```sh
+pip install selenium
+python chrome.py   # For Chrome
+python firefox.py  # For Firefox
+```
 
-**Note:**
-- The script uses a persistent browser profile so you only need to log in once.
-- You can adapt the script to use Chrome by changing the driver initialization.
+The script will open a browser window. Log in to Slack if prompted, then follow the terminal instructions.
+
+---
+
+## 4. Playwright Script (Recommended)
+
+Modern alternative to Selenium with better performance, reliability, and no external driver required.
+
+### Prerequisites
+- Python 3.8+
+
+### Installation
+```sh
+pip install playwright
+playwright install chromium
+```
+
+### Usage
+
+**Interactive mode** (opens browser window):
+```sh
+python playwright_extract.py
+```
+
+**Headless mode** (reuses existing session):
+```sh
+python playwright_extract.py --headless
+```
+
+**Specific workspace**:
+```sh
+python playwright_extract.py --workspace https://mycompany.slack.com
+```
+
+**Custom output file**:
+```sh
+python playwright_extract.py --output ~/.config/slack/tokens.env
+```
+
+### Features
+- **Persistent profile**: Log in once, reuse session for future extractions
+- **Headless support**: Run without GUI after initial login
+- **Multiple workspaces**: Extract from any workspace you have access to
+- **Secure output**: Tokens saved with `600` permissions
+
+### Options
+```
+--workspace, -w   Slack workspace URL (default: app.slack.com)
+--headless        Run without browser window (needs prior login)
+--output, -o      Output file path (default: .slack_tokens.env)
+--profile-dir     Browser profile directory for session persistence
+--no-save         Don't prompt to save tokens
+```
+
+---
+
+## Using Your Tokens
+
+### With slack-mcp-server
+
+The extracted tokens work directly with [slack-mcp-server](https://github.com/korotovsky/slack-mcp-server):
+
+```sh
+export SLACK_MCP_XOXC_TOKEN="xoxc-..."
+export SLACK_MCP_XOXD_TOKEN="xoxd-..."
+```
+
+Or source the generated `.env` file:
+```sh
+source .slack_tokens.env
+```
+
+### With curl
+
+```sh
+curl -H "Authorization: Bearer $SLACK_MCP_XOXC_TOKEN" \
+     -H "Cookie: d=$SLACK_MCP_XOXD_TOKEN" \
+     "https://slack.com/api/conversations.list"
+```
+
+---
+
+## Token Lifetime
+
+- Tokens remain valid as long as your browser session is active
+- Typically lasts weeks to months with regular Slack usage
+- Invalidated by: logging out, password change, or admin session revocation
+- Re-run the extractor when tokens expire
 
 ---
 
 ## Security
-- Tokens are only stored locally and are never transmitted anywhere.
-- **Never share your tokens.**
+
+- Tokens are stored **locally only** and never transmitted anywhere
+- Output files are created with `600` permissions (owner read/write only)
+- **Never share your tokens** — they provide full access to your Slack account
+- **Never commit tokens to git** — add `.slack_tokens.env` to `.gitignore`
+
+---
+
+## Troubleshooting
+
+**"Could not find XOXC token"**
+- Make sure you're fully logged into Slack
+- Wait for the workspace to fully load before pressing Enter
+- Try a different extraction method
+
+**"Not logged in and running in headless mode"**
+- Run once without `--headless` to log in
+- Your session will be saved for future headless runs
+
+**Tokens stopped working**
+- Your session expired — re-run the extractor
+- Check if you were logged out of Slack
 
 ---
 
 ## Appreciation
 
-Special thanks to [@korotovsky](https://github.com/korotovsky) for the excellent [slack-mcp-server](https://github.com/korotovsky/slack-mcp-server) setup guide. The clear and detailed instructions in their README made it much easier to understand and work with Slack tokens. Your work is greatly appreciated!
+Special thanks to [@korotovsky](https://github.com/korotovsky) for the excellent [slack-mcp-server](https://github.com/korotovsky/slack-mcp-server). The clear documentation made it much easier to understand and work with Slack tokens.
 
 ---
 
 ## License
-MIT 
+
+MIT
