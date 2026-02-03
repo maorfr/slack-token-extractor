@@ -1,0 +1,4 @@
+# Requirements for Playwright-based extraction
+# Install: pip install -r requirements-playwright.txt && playwright install chromium
+
+playwright>=1.40.0
