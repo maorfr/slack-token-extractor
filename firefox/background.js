@@ -3,7 +3,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Get the 'd' cookie (XOXD token)
     chrome.cookies.get({
       url: sender.url || (sender.tab && sender.tab.url),
-      name: 'd'
+      name: 'd',
+      // Firefox scopes cookies per contextual-identity container; without
+      // storeId this only searches the default store and misses the cookie
+      // when the tab is in a non-default container.
+      storeId: sender.tab && sender.tab.cookieStoreId
     }, (cookie) => {
       chrome.storage.local.set({
         xoxcToken: message.xoxcToken,
@@ -12,4 +16,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
     });
   }
-}); 
+});
