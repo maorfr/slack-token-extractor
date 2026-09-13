@@ -88,11 +88,11 @@ def extract_tokens(
         page = browser.pages[0] if browser.pages else browser.new_page()
 
         print(f"Navigating to {workspace_url}...")
-        page.goto(workspace_url)
+        page.goto(workspace_url, timeout=60000)
 
         # Wait for page to load
         try:
-            page.wait_for_load_state("networkidle", timeout=30000)
+            page.wait_for_load_state("networkidle", timeout=60000)
         except PlaywrightTimeout:
             pass  # Continue anyway, page might be loaded enough
 
@@ -113,59 +113,74 @@ def extract_tokens(
 
             # Wait for redirect to workspace
             try:
-                page.wait_for_url("**/client/**", timeout=10000)
-                page.wait_for_load_state("networkidle", timeout=30000)
+                page.wait_for_url("**slack.com/**", timeout=60000)
+                page.wait_for_load_state("networkidle", timeout=60000)
             except PlaywrightTimeout:
                 pass
 
-        # Extract team ID from URL
+        # Extract team ID from URL, JS globals, or localStorage
         current_path = page.url
         team_id_match = re.search(r"/client/([A-Z0-9]+)", current_path)
 
-        if not team_id_match:
-            # Try to get it from localStorage
+        if team_id_match:
+            team_id = team_id_match.group(1)
+        else:
             team_id = page.evaluate("""() => {
+                // Enterprise Grid: boot_data has team info
+                try {
+                    if (window.boot_data && window.boot_data.team_id)
+                        return window.boot_data.team_id;
+                } catch {}
+                try {
+                    if (window.TS && window.TS.model && window.TS.model.team)
+                        return window.TS.model.team.id;
+                } catch {}
+                // Standard Slack: localConfig_v2
                 try {
                     const config = JSON.parse(localStorage.localConfig_v2 || '{}');
                     const teams = Object.keys(config.teams || {});
-                    return teams[0] || null;
-                } catch { return null; }
+                    if (teams.length > 0) return teams[0];
+                } catch {}
+                return null;
             }""")
-        else:
-            team_id = team_id_match.group(1)
 
         if not team_id:
-            print("\nError: Could not determine team ID.")
-            print("Make sure you're viewing a Slack workspace.")
-            browser.close()
-            return None
+            team_id = "UNKNOWN"
+            print("Warning: Could not determine team ID, continuing with token extraction...")
 
         print(f"Found team ID: {team_id}")
 
-        # Extract XOXC token from localStorage
-        print("Extracting XOXC token from localStorage...")
+        # Extract XOXC token from JS globals, localStorage, or page content
+        print("Extracting XOXC token...")
         xoxc_token = page.evaluate("""(teamId) => {
+            // Enterprise Grid: boot_data or TS.model
+            try {
+                if (window.boot_data && window.boot_data.api_token)
+                    return window.boot_data.api_token;
+            } catch {}
+            try {
+                if (window.TS && window.TS.model && window.TS.model.api_token)
+                    return window.TS.model.api_token;
+            } catch {}
+            // Standard Slack: localStorage
             try {
                 const config = JSON.parse(localStorage.localConfig_v2 || '{}');
                 if (config.teams && config.teams[teamId]) {
                     return config.teams[teamId].token;
                 }
-                // Fallback: search all teams
                 for (const [tid, data] of Object.entries(config.teams || {})) {
                     if (data.token && data.token.startsWith('xoxc-')) {
                         return data.token;
                     }
                 }
             } catch {}
+            // Last resort: page HTML
+            try {
+                const match = document.documentElement.innerHTML.match(/"(?:api_)?token":"(xoxc-[^"]+)"/);
+                if (match) return match[1];
+            } catch {}
             return null;
         }""", team_id)
-
-        if not xoxc_token:
-            # Fallback: try to find in page content
-            xoxc_token = page.evaluate("""() => {
-                const match = document.body.innerHTML.match(/"token":"(xoxc-[^"]+)"/);
-                return match ? match[1] : null;
-            }""")
 
         if not xoxc_token:
             print("\nError: Could not find XOXC token.")
@@ -203,6 +218,7 @@ def extract_tokens(
 
 def save_tokens(tokens: dict, output_file: str) -> None:
     """Save tokens to a .env file."""
+    Path(output_file).parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, "w") as f:
         f.write(f"# Slack tokens extracted by slack-token-extractor\n")
         f.write(f"# Team ID: {tokens['team_id']}\n\n")
